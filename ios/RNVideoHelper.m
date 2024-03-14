@@ -38,6 +38,45 @@ RCT_EXPORT_MODULE()
     }
 }
 
+RCT_EXPORT_METHOD(GetBackgroundMiusic:(NSString *)source resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject){
+    
+    NSURL *videoUrl = [[NSURL alloc] initWithString:source];
+    AVURLAsset *videoAsset = [[AVURLAsset alloc] initWithURL:videoUrl options:nil];;
+        NSArray *keys = @[@"duration",@"tracks"];
+        [videoAsset loadValuesAsynchronouslyForKeys:keys completionHandler:^{
+            NSError *error = nil;
+            AVKeyValueStatus status = [videoAsset statusOfValueForKey:@"tracks" error:&error];
+            if(status ==AVKeyValueStatusLoaded) {//数据加载完成
+                AVMutableComposition *mixComposition = [[AVMutableComposition alloc] init];
+                // 2 - Video track
+                //Audio Recorder
+                //创建一个轨道,类型是AVMediaTypeAudio
+                AVMutableCompositionTrack *firstTrack = [mixComposition addMutableTrackWithMediaType:AVMediaTypeAudio preferredTrackID:kCMPersistentTrackID_Invalid];
+                //获取videoAsset中的音频,插入轨道
+                [firstTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, videoAsset.duration) ofTrack:[[videoAsset tracksWithMediaType:AVMediaTypeAudio] objectAtIndex:0] atTime:kCMTimeZero error:nil];
+                
+            //   source是否路径字符串，删除最后的文件名
+                NSString *newFile = [source stringByDeletingLastPathComponent];
+                newFile = [newFile stringByAppendingPathComponent:@"audio.M4A"];
+                NSURL *url = [NSURL URLWithString:newFile];
+                AVAssetExportSession *exporter = [[AVAssetExportSession alloc] initWithAsset:mixComposition presetName:AVAssetExportPresetAppleM4A];//输出为M4A音频
+                exporter.outputURL = url;
+                exporter.outputFileType = @"com.apple.m4a-audio";//类型和输出类型一致
+                exporter.shouldOptimizeForNetworkUse = YES;
+                [exporter exportAsynchronouslyWithCompletionHandler:^{
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        if (exporter.status == AVAssetExportSessionStatusCompleted) {
+                            resolve(@"sccuess");
+                        }else{
+                            NSLog(@"提取失败原因：%@",exporter.error);
+                            reject(@"video_export_error", [NSString stringWithFormat:@"Video export failed with error: %@ (%ld)", exporter.error.localizedDescription, exporter.error.code], nil);
+                        }
+                    });
+                }];
+            }
+        }];
+}
+
 RCT_EXPORT_METHOD(compress:(NSString *)source options:(NSDictionary *)options resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject){
     
     NSDate *methodStart = [NSDate date];
@@ -100,6 +139,10 @@ RCT_EXPORT_METHOD(compress:(NSString *)source options:(NSDictionary *)options re
     
     if (endT && [endT floatValue] > duration) {
         endT = nil;
+    }
+    
+    if ([endT isEqualToNumber:@0]) {
+        endT = @(duration);
     }
     
     if (startT || endT) {
