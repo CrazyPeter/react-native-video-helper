@@ -37,4 +37,12 @@ export default {
       }).catch(err => reject(err));
     });
   },
+  GetBackgroundMiusic: (source) => {
+    return new ProgressPromise((resolve, reject, progress) => {
+  
+      RNVideoHelper.GetBackgroundMiusic(source).then(result => {
+        resolve(result);
+      }).catch(err => reject(err));
+    });
+  },
 }
